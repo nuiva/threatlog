@@ -514,6 +514,11 @@ SlashCmdList.THREATLOG = function(s)
 			f.plot:destroy()
 			f.plot = nil
 		end
+	elseif s == "list" then
+		print("Targets saved by threatlog:")
+		for _,u in pairs(units) do
+			print(string.format("  %s (%s)", u.name, u.guid))
+		end
 	elseif s:match("^search ") then
 		local t = s:match(" (.*)")
 		for _,u in pairs(units) do
@@ -527,6 +532,6 @@ SlashCmdList.THREATLOG = function(s)
 			end
 		end
 	else
-		print("Usage:\n  /threatlog show - Shows the plot\n  /threatlog hide - Hides the plot\n  /threatlog search name - Shows the plot for some unit matching the string. Case sensitive.")
+		print("Usage:\n  /threatlog show - Shows the plot\n  /threatlog hide - Hides the plot\n  /threatlog list - Lists all saved targets.\n  /threatlog search name - Shows the plot for some unit matching the string. Case sensitive.")
 	end
 end
