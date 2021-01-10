@@ -1,7 +1,5 @@
 ## Title: threatlog
-##
-## Interface: 11302
-##
-## Version: 1
+## Interface: 11306
+## Version: 2
 
 threatlog.lua

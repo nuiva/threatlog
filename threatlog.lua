@@ -92,6 +92,9 @@ Snapshot.empty = function(self)
 	return not self.target or not self.tanking
 end
 
+f = CreateFrame("FRAME", nil, UIParent)
+local Plot = createClass()
+
 local Unit = createClass()
 Unit.constructor = function(self, unitId)
 	self.name = UnitName(unitId)
@@ -114,21 +117,25 @@ Unit.snapshot = function(self, unitId)
 		return
 	end
 	table.insert(self.snapshots, snapshot)
+	self.target = snapshot.target
 	self.threatMax = math.max(self.threatMax, snapshot.threatMax)
 	local allUnits = getAllUnits()
 	for guid,_ in pairs(snapshot.threat) do
-		if allUnits[guid] then
+		if allUnits[guid] and not self.targets[guid] then
 			self.targets[guid] = {select(1, UnitFullName(allUnits[guid])), select(2, UnitClass(allUnits[guid]))}
 		end
 	end
+	if f.plot and f.plot.unit == self then
+		f.plot:destroy()
+		f.plot = Plot:new(self)
+	end
 end
 
-units = {}
+local units = {}
 
 -- Source: https://www.reddit.com/r/WowUI/comments/95o7qc/other_how_to_pixel_perfect_ui_xpost_rwow/
 local pixelSize = 768 / UIParent:GetScale() / string.match( GetCVar( "gxWindowedResolution" ), "%d+x(%d+)" )
 
-f = CreateFrame("FRAME", nil, UIParent)
 f:Hide()
 f.textures = {}
 f.lines = {}
@@ -139,6 +146,7 @@ f:SetWidth(500)
 f:SetHeight(500)
 f:SetMovable(true)
 f:SetResizable(true)
+f:SetFrameStrata("DIALOG")
 f.background = f:CreateTexture()
 f.background:SetDrawLayer("BACKGROUND", -1)
 f.background:SetColorTexture(0, 0, 0, .5)
@@ -173,21 +181,14 @@ f.resize.texture:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
 f.resize.texture:SetAllPoints()
 f.resize.texture:Show()
 
-local Plot = createClass()
 local function OnUpdate(self)
 	for guid,unitId in pairs(getAllUnits()) do
-		if units[guid] then
+		if units[guid] and units[guid].target ~= UnitGUID(unitId .. "target") then
 			units[guid]:snapshot(unitId)
 		end
 	end
 	if not self.plot or not f:IsVisible() then
 		return
-	end
-	if f.plot then
-		f.plot:destroy()
-	end
-	if UnitExists("target") and units[UnitGUID("target")] then
-		f.plot = Plot:new(units[UnitGUID("target")])
 	end
 	local x,y = GetCursorPosition()
 	x = x / self:GetEffectiveScale() - self:GetLeft() - self.plot.plotLeft
@@ -469,6 +470,7 @@ Plot.mapPoint = function(self, time, threat)
 end
 
 f:RegisterEvent("UNIT_THREAT_LIST_UPDATE")
+f:RegisterEvent("PLAYER_TARGET_CHANGED")
 f:SetScript("OnLeave", function(self)
 	GameTooltip:Hide()
 end)
@@ -476,10 +478,20 @@ f:SetScript("OnUpdate", OnUpdate)
 f:SetScript("OnEvent", function(self,e,t)
 	if e == "UNIT_THREAT_LIST_UPDATE" then
 		local guid = UnitGUID(t)
-		if not units[guid] then units[guid] = Unit:new(t) end
+		if not units[guid] then
+			units[guid] = Unit:new(t)
+		end
 		units[guid]:snapshot(t)
-		if f:IsVisible() and guid == UnitGUID("target") then
-			if f.plot then f.plot:destroy() end
+		if not f.plot and f:IsVisible() and t == "target" then
+			f.plot = Plot:new(units[guid])
+		end
+	elseif e == "PLAYER_TARGET_CHANGED" then
+		if f.plot then
+			f.plot:destroy()
+			f.plot = nil
+		end
+		local guid = UnitGUID("target")
+		if guid and units[guid] then
 			f.plot = Plot:new(units[guid])
 		end
 	end
@@ -493,8 +505,28 @@ SlashCmdList.THREATLOG = function(s)
 			f.plot:destroy()
 			f.plot = nil
 		end
-		if UnitExists("target") and units[UnitGUID("target")] then f.plot = Plot:new(units[UnitGUID("target")]) end
+		if UnitExists("target") and units[UnitGUID("target")] then
+			f.plot = Plot:new(units[UnitGUID("target")])
+		end
 	elseif s == "hide" then
 		f:Hide()
+		if f.plot then
+			f.plot:destroy()
+			f.plot = nil
+		end
+	elseif s:match("^search ") then
+		local t = s:match(" (.*)")
+		for _,u in pairs(units) do
+			if u.guid:match(t) or u.name:match(t) then
+				if f.plot then
+					f.plot:destroy()
+				end
+				f.plot = Plot:new(u)
+				print(string.format("Showing threat plot for %s (%s).", u.name, u.guid))
+				return
+			end
+		end
+	else
+		print("Usage:\n  /threatlog show - Shows the plot\n  /threatlog hide - Hides the plot\n  /threatlog search name - Shows the plot for some unit matching the string. Case sensitive.")
 	end
 end
