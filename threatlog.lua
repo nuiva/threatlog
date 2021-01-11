@@ -175,7 +175,14 @@ f.resize:SetMovable(true)
 f.resize:EnableMouse(true)
 f.resize:RegisterForDrag("LeftButton")
 f.resize:SetScript("OnDragStart", function() f:StartSizing("BOTTOMRIGHT") end)
-f.resize:SetScript("OnDragStop", function() f:StopMovingOrSizing() end)
+f.resize:SetScript("OnDragStop", function()
+	f:StopMovingOrSizing()
+	if f.plot then
+		local u = f.plot.unit
+		f.plot:destroy()
+		f.plot = Plot:new(u)
+	end
+end)
 f.resize.texture = f.resize:CreateTexture(nil, "BACKGROUND")
 f.resize.texture:SetTexture("Interface\\ChatFrame\\UI-ChatIM-SizeGrabber-Up")
 f.resize.texture:SetAllPoints()
